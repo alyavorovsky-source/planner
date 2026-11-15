@@ -37,6 +37,9 @@
     /* ==================== Тема ==================== */
     applyTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
+      /* цвет системной панели браузера и установленного приложения следует теме */
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', theme === 'dark' ? '#15161c' : '#f4f5fa');
       const icon = document.getElementById('themeIcon');
       const label = document.getElementById('themeLabel');
       if (icon) icon.innerHTML = Icons.svg(theme === 'dark' ? 'sun' : 'moon');
