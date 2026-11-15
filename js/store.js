@@ -16,6 +16,19 @@
     { id: 'other', name: 'Другое', color: '#8b90a8' }
   ];
 
+  /* Статусы задач. «Выполнена» связана с флагом t.done (галочка в карточке),
+     остальные статусы хранятся в t.status. */
+  const STATUSES = [
+    { id: 'new', label: 'Новая' },
+    { id: 'active', label: 'В работе' },
+    { id: 'paused', label: 'Приостановлено' },
+    { id: 'blocked', label: 'Заблокировано' },
+    { id: 'postponed', label: 'Отложена' },
+    { id: 'done', label: 'Выполнена' },
+    { id: 'cancelled', label: 'Отменена' }
+  ];
+  const OPEN_STATUS = STATUSES.map(function (x) { return x.id; }).filter(function (id) { return id !== 'done'; });
+
   const DEFAULT_SETTINGS = {
     theme: 'dark',
     firstDay: 1,            // 1 = понедельник, 0 = воскресенье
@@ -97,6 +110,9 @@
         return t && typeof t === 'object' && typeof t.id === 'string' && typeof t.title === 'string' && U.parseDateKey(t.date) !== null;
       });
       d.tasks.forEach(function (t) {
+        /* статус «Выполнена», сохранённый в старых данных, превращаем в выполненную задачу */
+        if (t.status === 'done' && !t.done) { t.done = true; t.doneAt = typeof t.updatedAt === 'number' ? t.updatedAt : Date.now(); }
+        t.status = Store.normStatus(t.status);
         t.done = !!t.done;
         t.archived = !!t.archived;
         t.isMain = !!t.isMain;
@@ -158,6 +174,36 @@
       this.save();
     },
 
+    /* ==================== Статусы ==================== */
+    STATUSES: STATUSES,
+
+    /* Допустимый «открытый» статус (не «Выполнена»), иначе «Новая» */
+    normStatus(s) { return OPEN_STATUS.indexOf(s) >= 0 ? s : 'new'; },
+
+    statusLabel(id) {
+      const x = STATUSES.find(function (v) { return v.id === id; });
+      return x ? x.label : 'Новая';
+    },
+
+    /* Итоговый статус задачи: выполненная всегда «Выполнена» */
+    statusOf(t) { return t.done ? 'done' : this.normStatus(t.status); },
+
+    /* Смена статуса. «Выполнена» делает то же, что галочка (с логикой повторов). */
+    setStatus(id, status) {
+      const t = this.task(id);
+      if (!t) return { task: null, next: null };
+      let next = null;
+      if (status === 'done') {
+        if (!t.done) next = this.toggleDone(id).next;
+      } else {
+        if (t.done) this.toggleDone(id);
+        t.status = this.normStatus(status);
+        t.updatedAt = Date.now();
+        this.save();
+      }
+      return { task: t, next: next };
+    },
+
     /* ==================== Задачи ==================== */
     tasks(includeArchived) {
       if (includeArchived) return this.data.tasks;
@@ -192,6 +238,7 @@
         remind: form.remind || 'none',
         remindAt: form.remindAt || '',
         isMain: !!form.isMain,
+        status: this.normStatus(form.status),
         done: false,
         doneAt: null,
         createdAt: now,
@@ -200,6 +247,7 @@
         seriesId: null,
         seriesBase: null
       };
+      if (form.status === 'done') { t.done = true; t.doneAt = now; t.isMain = false; }
       if (t.repeat !== 'none') { t.seriesId = t.id; t.seriesBase = t.date; }
       this._enforceMainLimit(t);
       this.data.tasks.push(t);
@@ -233,6 +281,7 @@
       }
       this._enforceMainLimit(t);
       this.save();
+      if (form.status) this.setStatus(id, form.status);
       return t;
     },
 
@@ -312,6 +361,7 @@
         id: U.uid(),
         done: false,
         doneAt: null,
+        status: 'new',
         createdAt: now,
         updatedAt: now,
         date: nextDate,
@@ -405,7 +455,7 @@
     },
 
     isOverdue(t) {
-      if (t.done) return false;
+      if (t.done || t.status === 'cancelled') return false; /* отменённые не просрочены */
       const diff = U.diffDays(U.todayKey(), t.date);
       if (diff > 0) return true;
       if (diff === 0 && t.timeEnd && U.isValidTime(t.timeEnd)) {
@@ -520,7 +570,7 @@
           prio[t.priority] || t.priority,
           (Store.category(t.categoryId) || {}).name || '',
           rep[t.repeat] || t.repeat,
-          t.archived ? 'В архиве' : (t.done ? 'Выполнена' : 'Активна'),
+          t.archived ? 'В архиве' : Store.statusLabel(Store.statusOf(t)),
           new Date(t.createdAt).toISOString().slice(0, 10),
           t.doneAt ? new Date(t.doneAt).toISOString().slice(0, 10) : ''
         ].map(U.csvEscape).join(';');

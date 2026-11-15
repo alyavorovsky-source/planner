@@ -28,8 +28,10 @@
       this.render();
       this.updateHeader();
       this.updateStorageInfo();
+      this.updateVersion();
       this.startReminders();
       this.checkOverdueOnStart();
+      if (global.WhatsNew) WhatsNew.maybeShow();
     },
 
     /* ==================== Тема ==================== */
@@ -51,7 +53,7 @@
     buildNav() {
       const nav = document.getElementById('nav');
       const counts = {
-        tasks: function () { return Store.tasks().filter(function (t) { return !t.done; }).length; },
+        tasks: function () { return Store.tasks().filter(function (t) { return !t.done && t.status !== 'cancelled'; }).length; },
         archive: function () { return Store.data.tasks.filter(function (t) { return t.archived; }).length; }
       };
       nav.innerHTML = NAV.map(function (n) {
@@ -74,6 +76,8 @@
     },
 
     go(view) {
+      /* запоминаем, откуда пришли в настройки, чтобы кнопка «Назад» вернула на то же место */
+      if (view === 'settings' && this.view !== 'settings') this.prevView = this.view;
       this.view = view;
       Store.data.ui.lastView = view;
       Store.save();
@@ -100,6 +104,11 @@
     updateHeader() {
       document.getElementById('greeting').textContent = U.greeting() + '!';
       document.getElementById('topDate').textContent = U.formatLong(U.todayKey());
+    },
+
+    updateVersion() {
+      const el = document.getElementById('appVersion');
+      if (el) el.textContent = 'Версия ' + AppInfo.version + ' · ' + AppInfo.date;
     },
 
     updateStorageInfo() {
@@ -197,8 +206,9 @@
       const v = t || {
         title: '', desc: '', date: presetDate || U.todayKey(), timeStart: '', timeEnd: '',
         priority: 'medium', categoryId: cats[0] ? cats[0].id : 'other',
-        repeat: 'none', remind: 'none', remindAt: '', isMain: false
+        repeat: 'none', remind: 'none', remindAt: '', isMain: false, status: 'new'
       };
+      const curStatus = t ? Store.statusOf(t) : 'new';
 
       const catOpts = cats.map(function (c) {
         return '<option value="' + c.id + '"' + (v.categoryId === c.id ? ' selected' : '') + '>' + U.esc(c.name) + '</option>';
@@ -218,6 +228,9 @@
               return '<button type="button" data-v="' + p + '" class="' + (v.priority === p ? 'active' : '') + '"><span class="dot"></span>' + PRIO_LABEL[p] + '</button>';
             }).join('') +
           '</div></label>' +
+          '<label class="field">Статус<select name="status">' +
+            Store.STATUSES.map(function (st) { return '<option value="' + st.id + '"' + (curStatus === st.id ? ' selected' : '') + '>' + st.label + '</option>'; }).join('') +
+          '</select></label>' +
           '<label class="field">Повторение<select name="repeat">' +
             Object.keys(REPEAT_LABEL).map(function (r) { return '<option value="' + r + '"' + (v.repeat === r ? ' selected' : '') + '>' + REPEAT_LABEL[r] + '</option>'; }).join('') +
           '</select></label>' +
@@ -256,7 +269,8 @@
           timeStart: fd.get('timeStart') || '', timeEnd: fd.get('timeEnd') || '',
           priority: priority, categoryId: fd.get('categoryId'),
           repeat: fd.get('repeat'), remind: fd.get('remind'), remindAt: fd.get('remindAt') || '',
-          isMain: fd.get('isMain') === 'on'
+          isMain: fd.get('isMain') === 'on',
+          status: fd.get('status') || 'new'
         };
         const err = Store.validateTask(form);
         if (err) {
@@ -444,7 +458,15 @@
         }
 
         /* --- Задачи --- */
+        case 'settings-back': {
+          const back = this.prevView && this.prevView !== 'settings' && NAV.some(function (n) { return n.id === self.prevView; }) ? this.prevView : 'tasks';
+          this.go(back);
+          break;
+        }
+        case 'whats-new': this.closeSidebar(); if (global.WhatsNew) WhatsNew.open(); break;
+
         case 'tasks-filter': Views.state.tasksFilter = v; this.render(); break;
+        case 'tasks-mode': Store.data.ui.tasksMode = v; Store.save(); this.render(); break;
 
         /* --- Календарь --- */
         case 'cal-mode': Views.state.calMode = v; Store.data.ui.calMode = v; Store.save(); this.render(); break;
@@ -570,6 +592,80 @@
       this.render();
     },
 
+    /* ==================== Статусы и канбан ==================== */
+    /* Единая точка смены статуса: выпадающий список в карточке и перетаскивание в канбане. */
+    setTaskStatus(id, status) {
+      const t = Store.task(id);
+      if (!t) return;
+      const prev = Store.statusOf(t);
+      if (prev === status) { this.render(); return; }
+      const self = this;
+      const r = Store.setStatus(id, status);
+      this.toast('Статус: «' + Store.statusLabel(status) + '»', 'success', function () {
+        Store.setStatus(id, prev);
+        self.render();
+      });
+      if (r.next) this.toast('Создано повторение на ' + U.formatShort(r.next.date), 'info');
+      this.render();
+    },
+
+    /* Перетаскивание карточек между колонками канбана (зажатая левая кнопка мыши) */
+    bindKanban() {
+      const self = this;
+      let dragId = null;
+      const colOf = function (e) { return e.target && e.target.closest ? e.target.closest('[data-drop-status]') : null; };
+      const clear = function () {
+        dragId = null;
+        document.body.classList.remove('is-dragging');
+        document.querySelectorAll('.task--dragging').forEach(function (n) { n.classList.remove('task--dragging'); });
+        document.querySelectorAll('.kcol--over').forEach(function (n) { n.classList.remove('kcol--over'); });
+      };
+
+      document.addEventListener('dragstart', function (e) {
+        const card = e.target && e.target.closest ? e.target.closest('.task[draggable="true"]') : null;
+        if (!card) return;
+        dragId = card.getAttribute('data-task');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', dragId); } catch (err) { /* ignore */ }
+        card.classList.add('task--dragging');
+        document.body.classList.add('is-dragging');
+      });
+
+      document.addEventListener('dragover', function (e) {
+        if (!dragId) return;
+        /* автопрокрутка ленты колонок, когда карточка у левого или правого края */
+        const kb = e.target && e.target.closest ? e.target.closest('.kanban') : null;
+        if (kb) {
+          const r = kb.getBoundingClientRect();
+          if (e.clientX > r.right - 80) kb.scrollLeft += 22;
+          else if (e.clientX < r.left + 80) kb.scrollLeft -= 22;
+        }
+        const col = colOf(e);
+        if (!col) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        document.querySelectorAll('.kcol--over').forEach(function (n) { if (n !== col) n.classList.remove('kcol--over'); });
+        col.classList.add('kcol--over');
+      });
+
+      document.addEventListener('dragleave', function (e) {
+        const col = colOf(e);
+        if (col && !col.contains(e.relatedTarget)) col.classList.remove('kcol--over');
+      });
+
+      document.addEventListener('drop', function (e) {
+        const col = colOf(e);
+        if (!col || !dragId) return;
+        e.preventDefault();
+        const id = dragId;
+        const status = col.getAttribute('data-drop-status');
+        clear();
+        self.setTaskStatus(id, status);
+      });
+
+      document.addEventListener('dragend', clear);
+    },
+
     /* ==================== Быстрое создание задачи ==================== */
     /* Название + Enter: дата — сегодня, приоритет — средний. */
     quickAdd(input) {
@@ -679,6 +775,7 @@
     /* ==================== Статические обработчики ==================== */
     bindStatic() {
       const self = this;
+      this.bindKanban();
 
       document.addEventListener('click', function (e) {
         const nav = e.target.closest('[data-nav]');
@@ -687,7 +784,7 @@
         const actEl = e.target.closest('[data-act]');
         if (actEl) {
           const act = actEl.getAttribute('data-act');
-          if (act === 'tasks-sort' || act === 'tasks-cat' || act === 'tasks-prio' ||
+          if (act === 'tasks-sort' || act === 'tasks-cat' || act === 'tasks-prio' || act === 'status-set' ||
               act === 'set-toggle' || act === 'set-select' || act === 'set-time' ||
               act === 'cat-name' || act === 'cat-color') return; /* живут на change/input */
           self.handleAction(act, actEl);
@@ -715,7 +812,8 @@
         if (!el) return;
         const act = el.getAttribute('data-act');
         const id = el.getAttribute('data-id');
-        if (act === 'tasks-sort') { Views.state.tasksSort = el.value; self.render(); }
+        if (act === 'status-set') { self.setTaskStatus(id, el.value); }
+        else if (act === 'tasks-sort') { Views.state.tasksSort = el.value; self.render(); }
         else if (act === 'tasks-cat') { Views.state.tasksCat = el.value; self.render(); }
         else if (act === 'tasks-prio') { Views.state.tasksPrio = el.value; self.render(); }
         else if (act === 'set-toggle') {

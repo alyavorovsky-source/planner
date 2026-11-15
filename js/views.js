@@ -45,8 +45,16 @@
       if (t.done) cls.push('task--done');
       if (t.isMain && !t.done) cls.push('task--main');
       if (overdue) cls.push('task--overdue');
+      const status = Store.statusOf(t);
+      if (status === 'cancelled') cls.push('task--cancelled');
 
       let meta = '';
+      if (!opts.archive) {
+        /* выпадающий список статуса — первым в строке мета */
+        meta += '<select class="status-select st-' + status + '" data-act="status-set" data-id="' + t.id + '" title="Статус задачи" aria-label="Статус задачи">' +
+          Store.STATUSES.map(function (st) { return '<option value="' + st.id + '"' + (status === st.id ? ' selected' : '') + '>' + st.label + '</option>'; }).join('') +
+        '</select>';
+      }
       if (time) meta += '<span class="task__time">' + Icons.svg('clock', 13) + U.esc(time) + '</span>';
       meta += this.catChip(t.categoryId);
       meta += this.prioChip(t.priority);
@@ -69,7 +77,7 @@
         actions.push('<button class="icon-btn danger" data-act="delete" data-id="' + t.id + '" title="Удалить">' + Icons.svg('trash', 15) + '</button>');
       }
 
-      return '<div class="' + cls.join(' ') + '" data-task="' + t.id + '">' +
+      return '<div class="' + cls.join(' ') + '" data-task="' + t.id + '"' + (opts.draggable ? ' draggable="true"' : '') + '>' +
         '<input type="checkbox" class="task__check" data-act="toggle" data-id="' + t.id + '"' + (t.done ? ' checked' : '') + ' aria-label="Выполнено">' +
         '<div class="task__body">' +
           '<div class="task__title" data-act="open" data-id="' + t.id + '">' + U.esc(t.title) + '</div>' +
@@ -112,14 +120,36 @@
       return arr;
     },
 
+    /* ==================== КАНБАН ==================== */
+    kanbanHtml(list) {
+      const s = this.state;
+      const cols = Store.STATUSES.map(function (st) {
+        let items = list.filter(function (t) { return Store.statusOf(t) === st.id; });
+        if (st.id === 'done') {
+          items.sort(function (a, b) { return (b.doneAt || 0) - (a.doneAt || 0); });
+        } else {
+          items = Views.sortTasks(items, s.tasksSort);
+        }
+        const cards = items.length
+          ? items.map(function (t) { return Views.taskCard(t, { draggable: true, dateLabel: U.relativeDayLabel(t.date) }); }).join('')
+          : '<div class="kcol__empty">Перетащите задачу сюда</div>';
+        return '<section class="kcol" data-drop-status="' + st.id + '" aria-label="' + st.label + '">' +
+          '<header class="kcol__head"><span class="kcol__dot st-' + st.id + '"></span>' +
+            '<span class="kcol__title">' + st.label + '</span><span class="day-group__badge">' + items.length + '</span></header>' +
+          '<div class="kcol__body">' + cards + '</div></section>';
+      }).join('');
+      return '<div class="kanban">' + cols + '</div>';
+    },
+
     /* ==================== ЗАДАЧИ (Сегодня + Предстоящие + Все задачи) ==================== */
     renderTasks(el) {
       const s = this.state;
       const today = U.todayKey();
       const tomorrow = U.addDays(today, 1);
+      const mode = Store.data.ui.tasksMode === 'kanban' ? 'kanban' : 'list';
 
       /* --- шапка дня: считается по задачам на сегодня --- */
-      const todayAll = Store.todayTasks();
+      const todayAll = Store.todayTasks().filter(function (t) { return t.status !== 'cancelled'; });
       const done = todayAll.filter(function (t) { return t.done; });
       const active = todayAll.filter(function (t) { return !t.done; });
       const total = todayAll.length;
@@ -174,7 +204,7 @@
       if (s.tasksPrio) list = list.filter(function (t) { return t.priority === s.tasksPrio; });
 
       const f = s.tasksFilter;
-      if (f === 'active') list = list.filter(function (t) { return !t.done; });
+      if (f === 'active') list = list.filter(function (t) { return !t.done && t.status !== 'cancelled'; });
       else if (f === 'overdue') list = list.filter(function (t) { return Store.isOverdue(t); });
       else if (f === 'done') list = list.filter(function (t) { return t.done; });
       else list = list.filter(function (t) { return !t.done || t.date === today; }); /* «Все»: активные + выполненные сегодня */
@@ -191,9 +221,48 @@
         return '<option value="' + p + '"' + (s.tasksPrio === p ? ' selected' : '') + '>' + PRIO_LABEL[p] + '</option>';
       }).join('');
 
+      const modeSwitch = '<div class="segment">' +
+        '<button data-act="tasks-mode" data-v="list" class="' + (mode === 'list' ? 'active' : '') + '">' + Icons.svg('list', 15) + ' Список</button>' +
+        '<button data-act="tasks-mode" data-v="kanban" class="' + (mode === 'kanban' ? 'active' : '') + '">' + Icons.svg('tasks', 15) + ' Канбан</button>' +
+      '</div>';
+
+      if (mode === 'kanban') {
+        /* канбан: все неархивные задачи, колонки — статусы; статусные фильтры не нужны */
+        let kl = Store.tasks();
+        if (s.tasksCat) kl = kl.filter(function (t) { return t.categoryId === s.tasksCat; });
+        if (s.tasksPrio) kl = kl.filter(function (t) { return t.priority === s.tasksPrio; });
+        html += '<div class="section-head" style="margin-top:6px"><h2 class="section-title">Задачи</h2>' +
+          '<div class="section-sub">' + kl.length + ' шт.</div></div>';
+        html += '<div class="toolbar">' + modeSwitch +
+          '<select class="inline" data-act="tasks-cat" title="Категория">' + catOpts + '</select>' +
+          '<select class="inline" data-act="tasks-prio" title="Приоритет">' + prioOpts + '</select>' +
+          '<select class="inline" data-act="tasks-sort" title="Сортировка">' + sorts + '</select>' +
+          '<span class="kanban-tip">Перетаскивайте карточки между колонками, удерживая левую кнопку мыши</span></div>';
+        html += this.kanbanHtml(kl);
+
+        /* перерисовка не должна сбрасывать прокрутку ленты и колонок */
+        const prevBoard = el.querySelector('.kanban');
+        const boardLeft = prevBoard ? prevBoard.scrollLeft : 0;
+        const colTops = {};
+        el.querySelectorAll('.kcol').forEach(function (c) { colTops[c.getAttribute('data-drop-status')] = c.querySelector('.kcol__body').scrollTop; });
+        const viewTop = el.scrollTop;
+
+        el.innerHTML = html;
+
+        const board = el.querySelector('.kanban');
+        if (board) board.scrollLeft = boardLeft;
+        el.querySelectorAll('.kcol').forEach(function (c) {
+          const top = colTops[c.getAttribute('data-drop-status')];
+          if (top) c.querySelector('.kcol__body').scrollTop = top;
+        });
+        if (prevBoard) el.scrollTop = viewTop;
+        if (global.Comments) Comments.mount(el);
+        return;
+      }
+
       html += '<div class="section-head" style="margin-top:6px"><h2 class="section-title">Задачи</h2>' +
         '<div class="section-sub">' + list.length + ' шт.</div></div>';
-      html += '<div class="toolbar"><div class="segment">' + filters + '</div>' +
+      html += '<div class="toolbar">' + modeSwitch + '<div class="segment">' + filters + '</div>' +
         '<select class="inline" data-act="tasks-cat" title="Категория">' + catOpts + '</select>' +
         '<select class="inline" data-act="tasks-prio" title="Приоритет">' + prioOpts + '</select>' +
         '<select class="inline" data-act="tasks-sort" title="Сортировка">' + sorts + '</select></div>';
@@ -209,11 +278,12 @@
         const past = function (t) { return U.diffDays(today, t.date) > 0; };
         const ahead = function (t) { return U.diffDays(t.date, today); };
         groups = [
-          { label: 'Просроченные', danger: true, items: list.filter(function (t) { return !t.done && past(t); }), dateFmt: function (t) { return U.relativeDayLabel(t.date); } },
+          { label: 'Просроченные', danger: true, items: list.filter(function (t) { return !t.done && t.status !== 'cancelled' && past(t); }), dateFmt: function (t) { return U.relativeDayLabel(t.date); } },
           { label: 'Сегодня', items: list.filter(function (t) { return t.date === today; }), hideDate: true },
           { label: 'Завтра', items: list.filter(function (t) { return t.date === tomorrow; }), hideDate: true },
           { label: 'Следующие 7 дней', items: list.filter(function (t) { const d = ahead(t); return d >= 2 && d <= 7; }), dateFmt: function (t) { return U.formatShort(t.date); } },
-          { label: 'Позже', items: list.filter(function (t) { return ahead(t) > 7; }), dateFmt: function (t) { return U.formatShort(t.date); } }
+          { label: 'Позже', items: list.filter(function (t) { return ahead(t) > 7; }), dateFmt: function (t) { return U.formatShort(t.date); } },
+          { label: 'Раньше (отменённые)', items: list.filter(function (t) { return !t.done && t.status === 'cancelled' && past(t); }), dateFmt: function (t) { return U.formatShort(t.date); } }
         ];
       }
 
@@ -542,7 +612,8 @@
       }).join('');
 
       el.innerHTML =
-        '<div class="section-head"><h1 class="section-title">Настройки</h1></div>' +
+        '<div class="section-head"><button type="button" class="btn btn--sm btn--ghost" data-act="settings-back" aria-label="Назад">' + Icons.svg('left', 16) + 'Назад</button>' +
+          '<h1 class="section-title">Настройки</h1></div>' +
         '<div class="settings-grid">' +
 
         '<div class="panel"><h2 class="panel__title">' + Icons.svg('sun', 17) + 'Внешний вид и время</h2>' +
@@ -582,6 +653,12 @@
             '<button class="btn btn--sm btn--danger" data-act="reset-data">' + Icons.svg('trash', 15) + 'Сбросить всё</button>' +
           '</div>' +
           '<div class="set-row__hint" style="margin-top:10px">Версия схемы данных: ' + Store.data.version + '. Данные не отправляются на внешние серверы.</div>' +
+        '</div>' +
+
+        '<div class="panel"><h2 class="panel__title">' + Icons.svg('info', 17) + 'О приложении</h2>' +
+          '<div class="set-row"><div><div class="set-row__label">DailyFlow</div>' +
+            '<div class="set-row__hint">Версия ' + U.esc(AppInfo.version) + ' · ' + U.esc(AppInfo.date) + '</div></div>' +
+            '<button class="btn btn--sm btn--ghost" data-act="whats-new">Что нового</button></div>' +
         '</div>' +
 
         '</div>';
