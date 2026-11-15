@@ -1,4 +1,5 @@
-/* DailyFlow — единый слой данных (localStorage) */
+/* Мой планер — единый слой данных (localStorage).
+   Ключи localStorage начинаются с «dailyflow.» — это внутренние имена, их менять нельзя: иначе пропадут сохранённые данные. */
 (function (global) {
   'use strict';
 
@@ -7,13 +8,13 @@
   const LS_REMINDED = 'dailyflow.reminded.v1';
 
   const DEFAULT_CATEGORIES = [
-    { id: 'work', name: 'Работа', color: '#7c6cf0' },
+    { id: 'work', name: 'Работа', color: '#4585f5' },
     { id: 'personal', name: 'Личное', color: '#e07ab8' },
     { id: 'home', name: 'Дом', color: '#4aa8c9' },
     { id: 'study', name: 'Учёба', color: '#e0a458' },
     { id: 'health', name: 'Здоровье', color: '#5cb98a' },
-    { id: 'shopping', name: 'Покупки', color: '#c9a0dc' },
-    { id: 'other', name: 'Другое', color: '#8b90a8' }
+    { id: 'shopping', name: 'Покупки', color: '#d98c5f' },
+    { id: 'other', name: 'Другое', color: '#8b949e' }
   ];
 
   /* Статусы задач. «Выполнена» связана с флагом t.done (галочка в карточке),
@@ -99,11 +100,28 @@
     },
 
     /* Приводим данные к безопасному виду, отбрасывая мусор */
+    /* Однократно заменяем прежние фиолетовые цвета по умолчанию (категории и привычки) на новую палитру.
+       Цвета, выбранные вручную, не трогаем. */
+    _migratePalette(d) {
+      if (!d.ui || typeof d.ui !== 'object') d.ui = {};
+      if (d.ui.paletteV2) return;
+      const map = { '#7c6cf0': '#4585f5', '#c9a0dc': '#d98c5f', '#8b90a8': '#8b949e' };
+      const fix = function (x) {
+        if (!x || typeof x.color !== 'string') return;
+        const to = map[x.color.toLowerCase()];
+        if (to) x.color = to;
+      };
+      (Array.isArray(d.categories) ? d.categories : []).forEach(fix);
+      (Array.isArray(d.habits) ? d.habits : []).forEach(fix);
+      d.ui.paletteV2 = true;
+    },
+
     _sanitize(d) {
       if (!Array.isArray(d.tasks)) d.tasks = [];
       if (!Array.isArray(d.categories) || !d.categories.length) d.categories = DEFAULT_CATEGORIES.map(function (c) { return Object.assign({}, c); });
       if (!Array.isArray(d.habits)) d.habits = [];
       d.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings || {});
+      this._migratePalette(d);
       const catIds = {};
       d.categories.forEach(function (c) { catIds[c.id] = true; });
       d.tasks = d.tasks.filter(function (t) {
@@ -159,7 +177,7 @@
     },
     addCategory(name, color) {
       const id = U.uid();
-      this.data.categories.push({ id: id, name: name, color: color || '#8b90a8' });
+      this.data.categories.push({ id: id, name: name, color: color || '#8b949e' });
       this.save();
       return this.data.categories[this.data.categories.length - 1];
     },
@@ -473,7 +491,7 @@
       const h = {
         id: U.uid(),
         name: form.name.trim(),
-        color: form.color || '#7c6cf0',
+        color: form.color || '#4585f5',
         freq: form.freq || 'daily',
         createdAt: Date.now(),
         completions: {}
@@ -582,7 +600,7 @@
     importJSON(text) {
       let obj;
       try { obj = JSON.parse(text); } catch (e) { throw new Error('Файл не является корректным JSON.'); }
-      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Некорректная структура файла: ожидался объект данных DailyFlow.');
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Некорректная структура файла: ожидался объект данных «Мой планер».');
       if (!Array.isArray(obj.tasks)) throw new Error('В файле отсутствует список задач (tasks).');
       const test = {
         version: typeof obj.version === 'number' ? obj.version : 0,

@@ -1,4 +1,4 @@
-/* DailyFlow — утилиты */
+/* Мой планер — утилиты */
 (function (global) {
   'use strict';
 

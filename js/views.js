@@ -1,4 +1,4 @@
-/* DailyFlow — рендеринг разделов */
+/* Мой планер — рендеринг разделов */
 (function (global) {
   'use strict';
 
@@ -509,7 +509,7 @@
       /* категории */
       const catData = Object.keys(st.byCat).map(function (cid) {
         const c = Store.category(cid);
-        return { label: c ? c.name : '—', value: st.byCat[cid], color: c ? c.color : '#8b90a8' };
+        return { label: c ? c.name : '—', value: st.byCat[cid], color: c ? c.color : '#8b949e' };
       }).sort(function (a, b) { return b.value - a.value; });
       html += '<div class="panel chart-panel"><h3>Распределение по категориям</h3>' + (catData.length ? this.hBarChart(catData) : '<div class="section-sub">Нет данных за период</div>') + '</div>';
 
@@ -627,7 +627,7 @@
         '</div>' +
 
         '<div class="panel"><h2 class="panel__title">' + Icons.svg('bell', 17) + 'Уведомления</h2>' +
-          '<div class="set-row"><div><div class="set-row__label">Показывать напоминания</div><div class="set-row__hint">Работает только при открытой странице DailyFlow. Разрешение запрашивается при включении.</div></div>' + sw('notifications', s.notifications) + '</div>' +
+          '<div class="set-row"><div><div class="set-row__label">Показывать напоминания</div><div class="set-row__hint">Работает только при открытой странице «Мой планер». Разрешение запрашивается при включении.</div></div>' + sw('notifications', s.notifications) + '</div>' +
           '<div class="set-row"><div><div class="set-row__label">Статус разрешения браузера</div><div class="set-row__hint" id="notifPermStatus">' + U.esc(App.notifPermText()) + '</div></div>' +
             '<button class="btn btn--sm btn--ghost" data-act="notif-request">Запросить</button></div>' +
           '<div class="set-row"><div><div class="set-row__label">Предлагать архивировать завершённые старше</div><div class="set-row__hint">0 — не предлагать</div></div>' +
@@ -637,7 +637,7 @@
         '<div class="panel"><h2 class="panel__title">' + Icons.svg('folder', 17) + 'Категории</h2>' +
           catRows +
           '<div style="display:flex;gap:8px;margin-top:12px">' +
-            '<input type="color" id="newCatColor" value="#7c6cf0" style="width:40px;height:36px;border:1px solid var(--border);border-radius:8px;background:transparent;padding:2px;cursor:pointer">' +
+            '<input type="color" id="newCatColor" value="#4585f5" style="width:40px;height:36px;border:1px solid var(--border);border-radius:8px;background:transparent;padding:2px;cursor:pointer">' +
             '<input type="text" id="newCatName" placeholder="Название новой категории" maxlength="40" style="flex:1;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:8px;padding:8px 12px">' +
             '<button class="btn btn--sm btn--primary" data-act="cat-add">Добавить</button>' +
           '</div>' +
@@ -656,7 +656,7 @@
         '</div>' +
 
         '<div class="panel"><h2 class="panel__title">' + Icons.svg('info', 17) + 'О приложении</h2>' +
-          '<div class="set-row"><div><div class="set-row__label">DailyFlow</div>' +
+          '<div class="set-row"><div><div class="set-row__label">Мой планер</div>' +
             '<div class="set-row__hint">Версия ' + U.esc(AppInfo.version) + ' · ' + U.esc(AppInfo.date) + '</div></div>' +
             '<button class="btn btn--sm btn--ghost" data-act="whats-new">Что нового</button></div>' +
         '</div>' +

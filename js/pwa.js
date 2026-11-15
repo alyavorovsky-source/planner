@@ -1,4 +1,4 @@
-/* DailyFlow — регистрация service worker (установка как приложение и работа без сети).
+/* Мой планер — регистрация service worker (установка как приложение и работа без сети).
    Работает только по HTTPS (например, GitHub Pages) или на localhost: так требует браузер. */
 (function () {
   'use strict';
@@ -7,7 +7,7 @@
 
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js').catch(function (err) {
-      if (window.console) console.warn('DailyFlow: service worker не зарегистрирован', err);
+      if (window.console) console.warn('Мой планер: service worker не зарегистрирован', err);
     });
   });
 })();

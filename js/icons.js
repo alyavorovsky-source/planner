@@ -1,4 +1,4 @@
-/* DailyFlow — SVG-иконки (единый набор, stroke-стиль) */
+/* Мой планер — SVG-иконки (единый набор, stroke-стиль) */
 (function (global) {
   'use strict';
 

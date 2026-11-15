@@ -1,4 +1,4 @@
-/* DailyFlow — приложение: роутинг, модалки, поиск, хоткеи, уведомления */
+/* Мой планер — приложение: роутинг, модалки, поиск, хоткеи, уведомления */
 (function (global) {
   'use strict';
 
@@ -325,7 +325,7 @@
     /* ---------- Форма привычки ---------- */
     openHabitForm(habitId) {
       const h = habitId ? Store.habit(habitId) : null;
-      const v = h || { name: '', color: '#7c6cf0', freq: 'daily' };
+      const v = h || { name: '', color: '#4585f5', freq: 'daily' };
       const body =
         '<form id="habitForm" novalidate><div class="form-grid">' +
         '<label class="field full">Название привычки *<input type="text" name="name" maxlength="80" value="' + U.esc(v.name) + '" placeholder="Например: читать 20 минут"></label>' +
@@ -531,12 +531,12 @@
           break;
         }
         case 'export-json': {
-          U.download('dailyflow-backup-' + U.todayKey() + '.json', Store.exportJSON(), 'application/json');
+          U.download('moy-planer-backup-' + U.todayKey() + '.json', Store.exportJSON(), 'application/json');
           this.toast('Экспорт JSON выполнен', 'success');
           break;
         }
         case 'export-csv': {
-          U.download('dailyflow-tasks-' + U.todayKey() + '.csv', Store.csv(), 'text/csv;charset=utf-8');
+          U.download('moy-planer-tasks-' + U.todayKey() + '.csv', Store.csv(), 'text/csv;charset=utf-8');
           this.toast('Экспорт CSV выполнен', 'success');
           break;
         }
@@ -739,7 +739,7 @@
       const overdue = Store.tasks().filter(function (t) { return Store.isOverdue(t); });
       if (!overdue.length) return;
       this.toast('Просроченных задач: ' + overdue.length + '. Загляните в раздел «Предстоящие».', 'warn');
-      this.notify('DailyFlow', 'У вас просроченных задач: ' + overdue.length);
+      this.notify('Мой планер', 'У вас просроченных задач: ' + overdue.length);
     },
 
     /* ==================== Импорт ==================== */

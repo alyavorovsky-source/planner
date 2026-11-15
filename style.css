@@ -1,4 +1,4 @@
-/* ============ DailyFlow — стили ============ */
+/* ============ Мой планер — стили ============ */
 
 /* ---------- Переменные / темы ---------- */
 :root{
@@ -20,9 +20,11 @@ html[data-theme="dark"]{
   --text:#e8e9f0;
   --text-dim:#a3a7bb;
   --text-faint:#6c7086;
-  --accent:#7c6cf0;
-  --accent-soft:rgba(124,108,240,.16);
-  --accent-hover:#8d7ff5;
+  --accent:#4585f5;
+  --accent-soft:rgba(69,133,245,.16);
+  --accent-hover:#5b95f7;
+  --cyan:#2bb3c0;
+  --cyan-soft:rgba(43,179,192,.16);
   --green:#5cb98a;
   --green-soft:rgba(92,185,138,.15);
   --red:#e07a8b;
@@ -45,16 +47,18 @@ html[data-theme="light"]{
   --text:#23263a;
   --text-dim:#5c617c;
   --text-faint:#959ab4;
-  --accent:#6a58e8;
-  --accent-soft:rgba(106,88,232,.12);
-  --accent-hover:#5b49d8;
+  --accent:#2563eb;
+  --accent-soft:rgba(37,99,235,.12);
+  --accent-hover:#1d4fd1;
+  --cyan:#0e8a99;
+  --cyan-soft:rgba(14,138,153,.13);
   --green:#2f9e6e;
   --green-soft:rgba(47,158,110,.12);
   --red:#d4566c;
   --red-soft:rgba(212,86,108,.12);
   --amber:#c07f2c;
   --amber-soft:rgba(192,127,44,.14);
-  --gray-pill:#8b90a8;
+  --gray-pill:#8b949e;
   --scroll:#c9cddf;
   --shadow-1:0 1px 3px rgba(30,34,60,.08);
   --shadow-2:0 8px 28px rgba(30,34,60,.12);
@@ -543,7 +547,7 @@ input[type="checkbox"].cb:checked::after{content:"";width:9px;height:5px;border-
 .status-select:focus{outline:none;border-color:var(--accent)}
 .status-select.st-new{background:var(--accent-soft);color:var(--accent)}
 .status-select.st-active{background:var(--amber-soft);color:var(--amber)}
-.status-select.st-paused{background:rgba(74,168,201,.16);color:#4aa8c9}
+.status-select.st-paused{background:var(--cyan-soft);color:var(--cyan)}
 .status-select.st-blocked{background:rgba(240,138,75,.16);color:#f08a4b}
 .status-select.st-postponed{color:var(--text-faint)}
 .status-select.st-done{background:var(--green-soft);color:var(--green)}
@@ -564,7 +568,7 @@ input[type="checkbox"].cb:checked::after{content:"";width:9px;height:5px;border-
 .kcol__dot{width:9px;height:9px;border-radius:50%;background:var(--gray-pill);flex:none}
 .kcol__dot.st-new{background:var(--accent)}
 .kcol__dot.st-active{background:var(--amber)}
-.kcol__dot.st-paused{background:#4aa8c9}
+.kcol__dot.st-paused{background:var(--cyan)}
 .kcol__dot.st-blocked{background:#f08a4b}
 .kcol__dot.st-done{background:var(--green)}
 .kcol__dot.st-cancelled{background:var(--red)}
