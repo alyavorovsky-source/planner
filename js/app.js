@@ -209,7 +209,7 @@
       const v = t || {
         title: '', desc: '', date: presetDate || U.todayKey(), timeStart: '', timeEnd: '',
         priority: 'medium', categoryId: cats[0] ? cats[0].id : 'other',
-        repeat: 'none', remind: 'none', remindAt: '', isMain: false, status: 'new'
+        repeat: 'none', remind: 'none', remindAt: '', remindRepeat: 0, isMain: false, status: 'new'
       };
       const curStatus = t ? Store.statusOf(t) : 'new';
 
@@ -241,7 +241,10 @@
             [['none', 'Нет'], ['at', 'В указанное время']].map(function (o) { return '<option value="' + o[0] + '"' + (v.remind === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
           '</select></label>' +
           '<label class="field" id="remindAtWrap" style="' + (v.remind === 'at' ? '' : 'display:none') + '">Время напоминания<input type="time" name="remindAt" value="' + U.esc(v.remindAt) + '"></label>' +
-          '<label class="field" style="justify-content:flex-end;flex-direction:row;align-items:center;gap:10px;font-size:14px;color:var(--text)">' +
+          '<label class="field full" id="remindRepeatWrap" style="' + (v.remind === 'at' ? '' : 'display:none') + '">Повторять, пока не изменится статус задачи<select name="remindRepeat">' +
+            [[0, 'Не повторять'], [10, 'Каждые 10 минут'], [20, 'Каждые 20 минут'], [30, 'Каждые 30 минут'], [60, 'Каждый час']].map(function (o) { return '<option value="' + o[0] + '"' + (Number(v.remindRepeat) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+          '</select></label>' +
+          '<label class="field full" style="flex-direction:row;align-items:center;gap:10px;font-size:14px;color:var(--text);cursor:pointer">' +
             '<input type="checkbox" class="cb" name="isMain"' + (v.isMain ? ' checked' : '') + '> Сделать главной задачей дня</label>' +
           '<div class="form-error full" id="formError"></div>' +
         '</div></form>';
@@ -263,6 +266,7 @@
       });
       root.querySelector('[name=remind]').addEventListener('change', function (e) {
         root.querySelector('#remindAtWrap').style.display = e.target.value === 'at' ? '' : 'none';
+        root.querySelector('#remindRepeatWrap').style.display = e.target.value === 'at' ? '' : 'none';
       });
 
       const save = function () {
@@ -271,7 +275,7 @@
           title: fd.get('title'), desc: fd.get('desc'), date: fd.get('date'),
           timeStart: fd.get('timeStart') || '', timeEnd: fd.get('timeEnd') || '',
           priority: priority, categoryId: fd.get('categoryId'),
-          repeat: fd.get('repeat'), remind: fd.get('remind'), remindAt: fd.get('remindAt') || '',
+          repeat: fd.get('repeat'), remind: fd.get('remind'), remindAt: fd.get('remindAt') || '', remindRepeat: fd.get('remindRepeat') || 0,
           isMain: fd.get('isMain') === 'on',
           status: fd.get('status') || 'new'
         };
@@ -706,33 +710,33 @@
       }
     },
 
-    notify(title, body) {
+    /* Показ уведомления. Android Chrome разрешает его только через service worker,
+       поэтому сначала пробуем его, а обычный способ оставляем про запас (десктоп без service worker). */
+    notify(title, body, tag) {
       if (!this.notifSupported() || Notification.permission !== 'granted') return;
-      try { new Notification(title, { body: body }); } catch (e) { /* в некоторых браузерах требуется service worker */ }
+      const opts = { body: body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
+      if (tag) { opts.tag = tag; opts.renotify = true; }   // повтор заменяет прежнее уведомление и снова подаёт сигнал
+      const fallback = function () { try { new Notification(title, opts); } catch (e) { /* не поддерживается */ } };
+      if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistration) {
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (reg && reg.active) reg.showNotification(title, opts).catch(fallback);
+          else fallback();
+        }).catch(fallback);
+      } else {
+        fallback();
+      }
     },
 
-    _firedReminders: {},
-    checkReminders() {
-      const s = Store.settings();
-      if (!s.notifications) return;
-      if (!this.notifSupported() || Notification.permission !== 'granted') return;
-      const now = new Date();
-      const nowMin = now.getHours() * 60 + now.getMinutes();
-      const today = U.todayKey();
-      Store.tasks().forEach(function (t) {
-        if (t.done || t.remind !== 'at' || !U.isValidTime(t.remindAt)) return;
-        if (t.date !== today) return;
-        if (U.minutesOf(t.remindAt) !== nowMin) return;
-        const key = t.id + '@' + today + 'T' + t.remindAt;
-        if (App._firedReminders[key]) return;
-        App._firedReminders[key] = true;
-        App.notify('Напоминание: ' + t.title, t.desc || 'Запланировано на ' + U.formatTime(t.remindAt, s.timeFormat === 12));
-      });
+    checkReminders(now) {
+      return global.Reminders ? Reminders.check(now) : [];
     },
 
     startReminders() {
       this.checkReminders();
       setInterval(function () { App.checkReminders(); }, 30 * 1000);
+      /* на телефоне страница может «засыпать» — при возврате в приложение сразу проверяем пропущенное */
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) App.checkReminders(); });
+      window.addEventListener('focus', function () { App.checkReminders(); });
     },
 
     checkOverdueOnStart() {

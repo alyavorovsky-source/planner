@@ -331,7 +331,7 @@ table.tasks{width:100%;border-collapse:collapse;font-size:13.5px;min-width:820px
 .pagination button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
 .pagination button.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .pagination button:disabled{opacity:.4;cursor:default}
-input[type="checkbox"].cb{appearance:none;-webkit-appearance:none;width:17px;height:17px;border:2px solid var(--border);border-radius:5px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:all .12s}
+input[type="checkbox"].cb{appearance:none;-webkit-appearance:none;flex:none;width:18px;height:18px;border:2px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;transition:all .12s}
 input[type="checkbox"].cb:hover{border-color:var(--accent)}
 input[type="checkbox"].cb:checked{background:var(--accent);border-color:var(--accent)}
 input[type="checkbox"].cb:checked::after{content:"";width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
@@ -403,10 +403,10 @@ input[type="checkbox"].cb:checked::after{content:"";width:9px;height:5px;border-
 .modal__body{padding:16px 22px;overflow-y:auto}
 .modal__footer{display:flex;justify-content:flex-end;gap:10px;padding:0 22px 20px;flex-wrap:wrap}
 .modal__footer .left{margin-right:auto}
-.modal label.field input,.modal label.field select,.modal label.field textarea{
+.modal label.field input:not([type="checkbox"]),.modal label.field select,.modal label.field textarea{
   width:100%;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;
 }
-.modal label.field input:focus,.modal label.field select:focus,.modal label.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.modal label.field input:not([type="checkbox"]):focus,.modal label.field select:focus,.modal label.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .modal label.field textarea{resize:vertical;min-height:70px}
 .form-error{color:var(--red);font-size:12.5px;min-height:16px;margin-top:2px}
 .prio-picker{display:flex;gap:8px}

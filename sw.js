@@ -22,6 +22,7 @@ const SHELL = [
   'js/store.js',
   'js/views.js',
   'js/comments.js',
+  'js/reminders.js',
   'js/whatsnew.js',
   'js/pwa.js',
   'js/app.js'
@@ -74,4 +75,17 @@ self.addEventListener('fetch', function (event) {
   if (req.method !== 'GET') return;
   if (new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(networkFirst(req));
+});
+
+/* Нажатие на уведомление открывает приложение (или переключается на уже открытое окно) */
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      for (let i = 0; i < list.length; i++) {
+        if ('focus' in list[i]) return list[i].focus();
+      }
+      return self.clients.openWindow('./');
+    })
+  );
 });

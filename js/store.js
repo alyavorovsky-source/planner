@@ -141,6 +141,7 @@
         if (!U.isValidTime(t.remindAt || '')) t.remindAt = '';
         if (!t.remind) t.remind = 'none';
         if (t.remind !== 'none' && !U.isValidTime(t.remindAt || '')) t.remind = 'none';
+        t.remindRepeat = t.remind === 'none' ? 0 : Store.normRemindRepeat(t.remindRepeat);
         if (!catIds[t.categoryId]) t.categoryId = 'other';
         if (typeof t.createdAt !== 'number') t.createdAt = Date.now();
       });
@@ -190,6 +191,13 @@
       const fallback = this.data.categories[0] ? this.data.categories[0].id : 'other';
       this.data.tasks.forEach(function (t) { if (t.categoryId === id) t.categoryId = fallback; });
       this.save();
+    },
+
+    /* Интервалы повторных напоминаний, минуты (0 — не повторять) */
+    REMIND_REPEATS: [10, 20, 30, 60],
+    normRemindRepeat(v) {
+      const n = parseInt(v, 10);
+      return this.REMIND_REPEATS.indexOf(n) >= 0 ? n : 0;
     },
 
     /* ==================== Статусы ==================== */
@@ -255,6 +263,7 @@
         repeat: form.repeat || 'none',
         remind: form.remind || 'none',
         remindAt: form.remindAt || '',
+        remindRepeat: form.remind && form.remind !== 'none' ? Store.normRemindRepeat(form.remindRepeat) : 0,
         isMain: !!form.isMain,
         status: this.normStatus(form.status),
         done: false,
@@ -288,6 +297,7 @@
         repeat: form.repeat || 'none',
         remind: form.remind || 'none',
         remindAt: form.remindAt || '',
+        remindRepeat: form.remind && form.remind !== 'none' ? Store.normRemindRepeat(form.remindRepeat) : 0,
         isMain: !!form.isMain,
         updatedAt: Date.now()
       });
