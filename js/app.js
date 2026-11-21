@@ -5,7 +5,7 @@
   const NAV = [
     { id: 'tasks', label: 'Задачи', icon: 'tasks' },
     { id: 'calendar', label: 'Календарь', icon: 'calendar' },
-    { id: 'habits', label: 'Привычки', icon: 'habits' },
+    { id: 'meetings', label: 'Планерки', icon: 'users' },
     { id: 'stats', label: 'Статистика', icon: 'stats' },
     { id: 'archive', label: 'Архив', icon: 'archive' }
   ];
@@ -21,7 +21,7 @@
       this.bindStatic();
       Icons.hydrate(document);
       /* прежние разделы «Сегодня», «Предстоящие» и «Все задачи» теперь одна страница «Задачи» */
-      const legacy = { today: 'tasks', upcoming: 'tasks', all: 'tasks' };
+      const legacy = { today: 'tasks', upcoming: 'tasks', all: 'tasks', habits: 'tasks' };
       this.view = Store.data.ui.lastView || 'tasks';
       if (legacy[this.view]) this.view = legacy[this.view];
       if (!NAV.some(function (n) { return n.id === App.view; }) && this.view !== 'settings') this.view = 'tasks';
@@ -57,6 +57,10 @@
       const nav = document.getElementById('nav');
       const counts = {
         tasks: function () { return Store.tasks().filter(function (t) { return !t.done && t.status !== 'cancelled'; }).length; },
+        meetings: function () {
+          const today = U.todayKey();
+          return Store.topics().filter(function (x) { return !x.done && x.date >= today; }).length;
+        },
         archive: function () { return Store.data.tasks.filter(function (t) { return t.archived; }).length; }
       };
       nav.innerHTML = NAV.map(function (n) {
@@ -96,7 +100,7 @@
       const el = document.getElementById('view');
       const map = {
         tasks: 'renderTasks', calendar: 'renderCalendar',
-        habits: 'renderHabits', stats: 'renderStats',
+        meetings: 'renderMeetings', stats: 'renderStats',
         archive: 'renderArchive', settings: 'renderSettings'
       };
       const fn = Views[map[this.view] || 'renderTasks'];
@@ -118,7 +122,7 @@
       const el = document.getElementById('storageInfo');
       if (el) el.textContent = 'Локальное хранилище: ' + U.bytes(Store.storageSize()) + '. Данные не покидают ваш браузер.';
       const si = document.getElementById('setStorageInfo');
-      if (si) si.textContent = U.bytes(Store.storageSize()) + ' · задач: ' + Store.data.tasks.length + ' · привычек: ' + Store.habits().length;
+      if (si) si.textContent = U.bytes(Store.storageSize()) + ' · задач: ' + Store.data.tasks.length;
     },
 
     /* ==================== Мобильное меню ==================== */
@@ -326,46 +330,6 @@
       root.querySelector('#taskForm').addEventListener('submit', function (e) { e.preventDefault(); save(); });
     },
 
-    /* ---------- Форма привычки ---------- */
-    openHabitForm(habitId) {
-      const h = habitId ? Store.habit(habitId) : null;
-      const v = h || { name: '', color: '#4585f5', freq: 'daily' };
-      const body =
-        '<form id="habitForm" novalidate><div class="form-grid">' +
-        '<label class="field full">Название привычки *<input type="text" name="name" maxlength="80" value="' + U.esc(v.name) + '" placeholder="Например: читать 20 минут"></label>' +
-        '<label class="field">Частота<select name="freq">' +
-          [['daily', 'Ежедневно'], ['weekdays', 'По будням'], ['weekends', 'По выходным']]
-            .map(function (o) { return '<option value="' + o[0] + '"' + (v.freq === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
-        '</select></label>' +
-        '<label class="field">Цвет<input type="color" name="color" value="' + v.color + '" style="height:40px;padding:3px;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:8px"></label>' +
-        '<div class="form-error full" id="habitError"></div>' +
-        '</div></form>';
-      const footer = '<button class="btn btn--ghost" data-modal="cancel">Отмена</button>' +
-        '<button class="btn btn--primary" data-modal="save">' + (h ? 'Сохранить' : 'Создать') + '</button>';
-      this.openModal(h ? 'Редактирование привычки' : 'Новая привычка', body, footer);
-
-      const root = document.getElementById('modalRoot');
-      const save = function () {
-        const fd = new FormData(root.querySelector('#habitForm'));
-        const name = (fd.get('name') || '').trim();
-        if (!name) { root.querySelector('#habitError').textContent = 'Название привычки обязательно.'; return; }
-        const form = { name: name, color: fd.get('color'), freq: fd.get('freq') };
-        if (h) { Store.updateHabit(h.id, form); App.toast('Привычка обновлена', 'success'); }
-        else { Store.createHabit(form); App.toast('Привычка создана', 'success'); }
-        App.closeModal();
-        App.render();
-      };
-      const handler = function (e) {
-        const b = e.target.closest('[data-modal]');
-        if (!b) return;
-        if (b.getAttribute('data-modal') === 'save') save();
-        else App.closeModal();
-      };
-      root.addEventListener('click', handler);
-      App._modalCleanup = function () { root.removeEventListener('click', handler); };
-      root.querySelector('#habitForm').addEventListener('submit', function (e) { e.preventDefault(); save(); });
-    },
-
     /* ==================== Поиск ==================== */
     runSearch(q) {
       const box = document.getElementById('searchResults');
@@ -483,20 +447,6 @@
         case 'cal-new': this.openTaskForm(null, el.getAttribute('data-date')); break;
         case 'cal-open-day': Views.state.calMode = 'day'; Views.state.calAnchor = el.getAttribute('data-date'); this.render(); break;
 
-        /* --- Привычки --- */
-        case 'new-habit': this.openHabitForm(null); break;
-        case 'edit-habit': this.openHabitForm(id); break;
-        case 'habit-toggle':
-          Store.toggleHabit(id, el.getAttribute('data-date'));
-          this.render();
-          break;
-        case 'delete-habit': {
-          const h = Store.habit(id);
-          if (!h) break;
-          this.confirm('Удалить привычку?', 'Привычка «' + U.esc(h.name) + '» и вся история отметок будут удалены.', 'Удалить', true)
-            .then(function (ok) { if (ok) { Store.deleteHabit(id); self.toast('Привычка удалена', 'success'); self.render(); } });
-          break;
-        }
 
         /* --- Статистика --- */
         case 'stats-range': Views.state.statsRange = v; this.render(); break;
@@ -562,7 +512,7 @@
           document.getElementById('importFile').click();
           break;
         case 'reset-data': {
-          this.confirm('Сбросить все данные?', 'Будут удалены <b>все задачи, привычки, категории и настройки</b> без возможности восстановления. Рекомендуем сначала сделать экспорт JSON.', 'Сбросить всё', true)
+          this.confirm('Сбросить все данные?', 'Будут удалены <b>все задачи, темы планёрок, категории и настройки</b> без возможности восстановления. Рекомендуем сначала сделать экспорт JSON.', 'Сбросить всё', true)
             .then(function (ok) {
               if (!ok) return;
               Store.resetAll();
@@ -762,7 +712,7 @@
         }
         self.confirm('Заменить данные импортом?',
           'Файл содержит задач: <b>' + preview.tasks.length + '</b>' +
-          (Array.isArray(preview.habits) ? ', привычек: <b>' + preview.habits.length + '</b>' : '') +
+          (Array.isArray(preview.topics) ? ', тем планёрок: <b>' + preview.topics.length + '</b>' : '') +
           '.<br><b>Все текущие данные будут заменены.</b> Рекомендуем сначала создать резервную копию.',
           'Импортировать', true).then(function (ok) {
             if (!ok) return;

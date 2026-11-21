@@ -23,6 +23,7 @@ const SHELL = [
   'js/views.js',
   'js/comments.js',
   'js/reminders.js',
+  'js/meetings.js',
   'js/whatsnew.js',
   'js/pwa.js',
   'js/app.js'

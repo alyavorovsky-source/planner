@@ -83,7 +83,7 @@
         version: SCHEMA_VERSION,
         tasks: [],
         categories: DEFAULT_CATEGORIES.map(function (c) { return Object.assign({}, c); }),
-        habits: [],
+        topics: [],
         settings: Object.assign({}, DEFAULT_SETTINGS),
         ui: { lastView: 'tasks', upcomingMode: 'list', calMode: 'month', allPage: 1, allPerPage: 25 }
       };
@@ -100,7 +100,7 @@
     },
 
     /* Приводим данные к безопасному виду, отбрасывая мусор */
-    /* Однократно заменяем прежние фиолетовые цвета по умолчанию (категории и привычки) на новую палитру.
+    /* Однократно заменяем прежние фиолетовые цвета по умолчанию (категории) на новую палитру.
        Цвета, выбранные вручную, не трогаем. */
     _migratePalette(d) {
       if (!d.ui || typeof d.ui !== 'object') d.ui = {};
@@ -112,14 +112,13 @@
         if (to) x.color = to;
       };
       (Array.isArray(d.categories) ? d.categories : []).forEach(fix);
-      (Array.isArray(d.habits) ? d.habits : []).forEach(fix);
       d.ui.paletteV2 = true;
     },
 
     _sanitize(d) {
       if (!Array.isArray(d.tasks)) d.tasks = [];
       if (!Array.isArray(d.categories) || !d.categories.length) d.categories = DEFAULT_CATEGORIES.map(function (c) { return Object.assign({}, c); });
-      if (!Array.isArray(d.habits)) d.habits = [];
+      if (!Array.isArray(d.topics)) d.topics = [];
       d.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings || {});
       this._migratePalette(d);
       const catIds = {};
@@ -145,12 +144,16 @@
         if (!catIds[t.categoryId]) t.categoryId = 'other';
         if (typeof t.createdAt !== 'number') t.createdAt = Date.now();
       });
-      d.habits = d.habits.filter(function (h) {
-        return h && typeof h === 'object' && typeof h.id === 'string' && typeof h.name === 'string';
+      /* темы планёрок */
+      d.topics = d.topics.filter(function (x) {
+        return x && typeof x === 'object' && typeof x.id === 'string' && typeof x.title === 'string' && U.parseDateKey(x.date) !== null;
       });
-      d.habits.forEach(function (h) {
-        h.freq = ['daily', 'weekdays', 'weekends'].indexOf(h.freq) >= 0 ? h.freq : 'daily';
-        if (!h.completions || typeof h.completions !== 'object') h.completions = {};
+      d.topics.forEach(function (x) {
+        if (typeof x.desc !== 'string') x.desc = '';
+        x.done = !!x.done;
+        if (typeof x.createdAt !== 'number') x.createdAt = Date.now();
+        if (typeof x.updatedAt !== 'number') x.updatedAt = x.createdAt;
+        if (!x.done) x.doneAt = null;
       });
     },
 
@@ -493,94 +496,66 @@
       return false;
     },
 
-    /* ==================== Привычки ==================== */
-    habits() { return this.data.habits; },
-    habit(id) { return this.data.habits.find(function (h) { return h.id === id; }) || null; },
+    /* ==================== Планерки: темы для обсуждения ==================== */
+    topics() { return this.data.topics; },
+    topic(id) { return this.data.topics.find(function (x) { return x.id === id; }) || null; },
 
-    createHabit(form) {
-      const h = {
+    validateTopic(form) {
+      const title = (form.title || '').trim();
+      if (!title) return 'Введите название темы.';
+      if (title.length > 120) return 'Название темы не должно быть длиннее 120 символов.';
+      if ((form.desc || '').length > 2000) return 'Описание не должно быть длиннее 2000 символов.';
+      if (U.parseDateKey(form.date) === null) return 'Выберите планерку.';
+      return '';
+    },
+
+    createTopic(form) {
+      const now = Date.now();
+      const x = {
         id: U.uid(),
-        name: form.name.trim(),
-        color: form.color || '#4585f5',
-        freq: form.freq || 'daily',
-        createdAt: Date.now(),
-        completions: {}
+        date: form.date,
+        title: form.title.trim(),
+        desc: (form.desc || '').trim(),
+        done: false,
+        doneAt: null,
+        createdAt: now,
+        updatedAt: now
       };
-      this.data.habits.push(h);
+      this.data.topics.push(x);
       this.save();
-      return h;
+      return x;
     },
 
-    updateHabit(id, form) {
-      const h = this.habit(id);
-      if (!h) return;
-      if (form.name != null) h.name = form.name.trim();
-      if (form.color) h.color = form.color;
-      if (form.freq) h.freq = form.freq;
+    updateTopic(id, form) {
+      const x = this.topic(id);
+      if (!x) return null;
+      x.title = form.title.trim();
+      x.desc = (form.desc || '').trim();
+      x.date = form.date;
+      x.updatedAt = Date.now();
       this.save();
+      return x;
     },
 
-    deleteHabit(id) {
-      this.data.habits = this.data.habits.filter(function (h) { return h.id !== id; });
-      this.save();
-    },
-
-    habitScheduled(h, dateKey) {
-      const wd = U.weekdayOf(dateKey);
-      if (h.freq === 'weekdays') return wd >= 1 && wd <= 5;
-      if (h.freq === 'weekends') return wd === 0 || wd === 6;
-      return true;
-    },
-
-    toggleHabit(id, dateKey) {
-      const h = this.habit(id);
-      if (!h) return;
-      if (h.completions[dateKey]) delete h.completions[dateKey];
-      else h.completions[dateKey] = true;
+    setTopicDone(id, done) {
+      const x = this.topic(id);
+      if (!x) return;
+      x.done = !!done;
+      x.doneAt = x.done ? Date.now() : null;
+      x.updatedAt = Date.now();
       this.save();
     },
 
-    /* Серия с учётом расписания: пропущенный не-плановый день не прерывает серию */
-    habitStreak(h, endKey) {
-      let d = endKey || U.todayKey();
-      let streak = 0;
-      for (let i = 0; i < 3660; i++) {
-        const scheduled = this.habitScheduled(h, d);
-        const done = !!h.completions[d];
-        if (done) { streak++; }
-        else if (scheduled) {
-          if (i === 0 && d === U.todayKey()) { /* сегодня ещё можно отметить */ }
-          else break;
-        }
-        d = U.addDays(d, -1);
-      }
-      return streak;
+    deleteTopic(id) {
+      const x = this.topic(id);
+      if (!x) return null;
+      this.data.topics = this.data.topics.filter(function (t) { return t.id !== id; });
+      this.save();
+      return x;
     },
 
-    habitBestStreak(h) {
-      const keys = Object.keys(h.completions).sort();
-      if (!keys.length) return 0;
-      let best = 0, run = 0;
-      let prev = null;
-      for (let i = 0; i < keys.length; i++) {
-        const k = keys[i];
-        if (!this.habitScheduled(h, k)) continue;
-        if (prev !== null) {
-          /* идём от prev к k через плановые дни */
-          let d = U.addDays(prev, 1);
-          let gapOk = true;
-          while (d !== k) {
-            if (this.habitScheduled(h, d)) { gapOk = false; break; }
-            d = U.addDays(d, 1);
-          }
-          run = gapOk ? run + 1 : 1;
-        } else {
-          run = 1;
-        }
-        best = Math.max(best, run);
-        prev = k;
-      }
-      return best;
+    restoreTopic(x) {
+      if (x && !this.topic(x.id)) { this.data.topics.push(x); this.save(); }
     },
 
     /* ==================== Экспорт / импорт ==================== */
@@ -614,7 +589,8 @@
       if (!Array.isArray(obj.tasks)) throw new Error('В файле отсутствует список задач (tasks).');
       const test = {
         version: typeof obj.version === 'number' ? obj.version : 0,
-        tasks: obj.tasks, categories: obj.categories, habits: obj.habits,
+        tasks: obj.tasks, categories: obj.categories, topics: obj.topics,
+        habits: obj.habits,   /* раздела «Привычки» больше нет; сохранённые данные не удаляем, но и нигде не показываем */
         settings: obj.settings, ui: obj.ui
       };
       const self = this;

@@ -414,75 +414,10 @@
       }).join('') + '</div>';
     },
 
-    /* ==================== ПРИВЫЧКИ ==================== */
-    renderHabits(el) {
-      const habits = Store.habits();
-      const firstDay = Store.settings().firstDay;
-      const today = U.todayKey();
-      const ws = U.startOfWeek(today, firstDay);
-
-      let html = '<div class="section-head"><h1 class="section-title">Привычки</h1><div class="spacer"></div>' +
-        '<button class="btn btn--primary" data-act="new-habit">' + Icons.svg('plus') + 'Новая привычка</button></div>';
-
-      if (!habits.length) {
-        html += '<div class="empty">' + Icons.svg('habits', 66) +
-          '<div class="empty__title">Привычек пока нет</div>' +
-          '<div class="empty__text">Создайте привычку — например, «Читать 20 минут» или «Делать зарядку», — и отмечайте выполнение по дням.</div>' +
-          '<button class="btn btn--primary" data-act="new-habit">' + Icons.svg('plus') + 'Создать привычку</button></div>' +
-          '<div class="panel" style="margin-top:6px"><h2 class="panel__title">' + Icons.svg('info', 17) + 'Идеи для старта</h2><div class="legend">' +
-          ['Читать 20 минут', 'Делать зарядку', 'Изучать язык', 'Пить достаточно воды', 'Делать перерывы в работе']
-            .map(function (x) { return '<span style="background:var(--bg-elev-2);border-radius:20px;padding:5px 12px">' + x + '</span>'; }).join('') + '</div></div>';
-        el.innerHTML = html; return;
-      }
-
-      const freqLbl = { daily: 'Ежедневно', weekdays: 'По будням', weekends: 'По выходным' };
-
-      habits.forEach(function (h) {
-        const week = [];
-        for (let i = 0; i < 7; i++) {
-          const dk = U.addDays(ws, i);
-          const sched = Store.habitScheduled(h, dk);
-          const checked = !!h.completions[dk];
-          const future = U.diffDays(dk, today) > 0;
-          const missed = !checked && sched && U.diffDays(today, dk) > 0;
-          const d = U.parseDateKey(dk);
-          week.push('<button class="habit-day' + (checked ? ' checked' : '') + (missed ? ' past-missed' : '') + '"' +
-            ' data-act="habit-toggle" data-id="' + h.id + '" data-date="' + dk + '"' + (future && !checked ? ' disabled' : '') +
-            (checked ? ' style="background:' + h.color + '"' : '') + ' title="' + U.formatShort(dk) + '">' +
-            '<small>' + U.WEEKDAYS_SHORT[d.getDay()] + '</small>' + d.getDate() + (checked ? ' ✓' : '') + '</button>');
-        }
-        const totalDone = Object.keys(h.completions).length;
-        const streak = Store.habitStreak(h, today);
-        const best = Store.habitBestStreak(h);
-
-        /* история за 28 дней */
-        let hist = '';
-        for (let i = 27; i >= 0; i--) {
-          const dk = U.addDays(today, -i);
-          const on = !!h.completions[dk];
-          const sched = Store.habitScheduled(h, dk);
-          hist += '<i class="' + (on ? 'on' : (sched ? 'sched' : '')) + '" title="' + U.formatShort(dk) + '" style="' + (on ? 'background:' + h.color : '') + '"></i>';
-        }
-
-        html += '<div class="panel habit-card" data-habit="' + h.id + '">' +
-          '<div class="habit-card__top">' +
-            '<span class="habit-card__name"><span class="dot" style="background:' + h.color + '"></span>' + U.esc(h.name) + '</span>' +
-            '<span class="chip chip--cat">' + freqLbl[h.freq] + '</span>' +
-            '<div class="spacer"></div>' +
-            '<button class="icon-btn" data-act="edit-habit" data-id="' + h.id + '" title="Редактировать">' + Icons.svg('edit', 15) + '</button>' +
-            '<button class="icon-btn danger" data-act="delete-habit" data-id="' + h.id + '" title="Удалить">' + Icons.svg('trash', 15) + '</button>' +
-          '</div>' +
-          '<div class="habit-week">' + week.join('') + '</div>' +
-          '<div class="habit-stats">' +
-            '<div class="habit-stat"><b>' + streak + '</b>серия дней</div>' +
-            '<div class="habit-stat"><b>' + best + '</b>лучшая серия</div>' +
-            '<div class="habit-stat"><b>' + totalDone + '</b>всего отметок</div>' +
-          '</div>' +
-          '<div><div class="section-sub" style="margin-bottom:6px">История за 28 дней</div><div class="habit-history">' + hist + '</div></div>' +
-        '</div>';
-      });
-
-      el.innerHTML = html;
+    /* ==================== ПЛАНЁРКИ ==================== */
+    renderMeetings(el) {
+      el.innerHTML = '';
+      Meetings.render(el);
     },
 
     /* ==================== СТАТИСТИКА ==================== */
@@ -664,7 +599,7 @@
         '</div>';
 
       const info = document.getElementById('setStorageInfo');
-      if (info) info.textContent = U.bytes(Store.storageSize()) + ' · задач: ' + Store.data.tasks.length + ' · привычек: ' + Store.habits().length;
+      if (info) info.textContent = U.bytes(Store.storageSize()) + ' · задач: ' + Store.data.tasks.length;
     }
   };
 
