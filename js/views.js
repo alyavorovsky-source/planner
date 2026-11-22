@@ -8,7 +8,7 @@
   const Views = {
     state: {
       tasksFilter: 'all',       // all | active | done | overdue
-      tasksSort: 'time',        // time | priority | created
+      tasksSort: 'priority',    // priority | created
       tasksCat: '',
       tasksPrio: '',
       quickDraft: '',           // недописанное название в строке быстрого ввода
@@ -28,19 +28,10 @@
       return '<span class="chip chip--cat" style="color:' + U.esc(c.color) + '"><span class="chip__dot"></span>' + U.esc(c.name) + '</span>';
     },
 
-    timeLabel(t) {
-      const s = Store.settings();
-      const parts = [];
-      if (t.timeStart) parts.push(U.formatTime(t.timeStart, s.timeFormat === 12));
-      if (t.timeEnd) parts.push('– ' + U.formatTime(t.timeEnd, s.timeFormat === 12));
-      return parts.join(' ');
-    },
-
     /* ---------- Карточка задачи ---------- */
     taskCard(t, opts) {
       opts = opts || {};
       const overdue = Store.isOverdue(t);
-      const time = this.timeLabel(t);
       const cls = ['task'];
       if (t.done) cls.push('task--done');
       if (t.isMain && !t.done) cls.push('task--main');
@@ -55,7 +46,6 @@
           Store.STATUSES.map(function (st) { return '<option value="' + st.id + '"' + (status === st.id ? ' selected' : '') + '>' + st.label + '</option>'; }).join('') +
         '</select>';
       }
-      if (time) meta += '<span class="task__time">' + Icons.svg('clock', 13) + U.esc(time) + '</span>';
       meta += this.catChip(t.categoryId);
       meta += this.prioChip(t.priority);
       if (!opts.hideDate) {
@@ -99,17 +89,11 @@
     sortTasks(list, mode) {
       const arr = list.slice();
       const big = 1e9;
-      if (mode === 'time') {
-        arr.sort(function (a, b) {
-          const ta = U.minutesOf(a.timeStart); const tb = U.minutesOf(b.timeStart);
-          if (ta !== null && tb !== null && ta !== tb) return ta - tb;
-          if (ta !== null && tb === null) return -1;
-          if (ta === null && tb !== null) return 1;
-          return a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt;
-        });
-      } else if (mode === 'priority') {
+      if (mode === 'priority') {
         const w = { high: 0, medium: 1, low: 2 };
-        arr.sort(function (a, b) { return w[a.priority] - w[b.priority] || (a.date < b.date ? -1 : 1); });
+        arr.sort(function (a, b) {
+          return w[a.priority] - w[b.priority] || (a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt);
+        });
       } else if (mode === 'date') {
         arr.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt; });
       } else if (mode === 'created') {
@@ -212,7 +196,7 @@
       /* --- панель фильтров --- */
       const filters = [['all', 'Все'], ['active', 'Активные'], ['done', 'Выполненные'], ['overdue', 'Просроченные']]
         .map(function (fr) { return '<button data-act="tasks-filter" data-v="' + fr[0] + '" class="' + (f === fr[0] ? 'active' : '') + '">' + fr[1] + '</button>'; }).join('');
-      const sorts = [['time', 'По времени'], ['priority', 'По приоритету'], ['created', 'По дате создания']]
+      const sorts = [['priority', 'По приоритету'], ['created', 'По дате создания']]
         .map(function (fr) { return '<option value="' + fr[0] + '"' + (s.tasksSort === fr[0] ? ' selected' : '') + '>' + fr[1] + '</option>'; }).join('');
       const catOpts = '<option value="">Все категории</option>' + Store.categories().map(function (c) {
         return '<option value="' + c.id + '"' + (s.tasksCat === c.id ? ' selected' : '') + '>' + U.esc(c.name) + '</option>';
@@ -339,7 +323,6 @@
       const evPill = function (t) {
         const c = Store.category(t.categoryId);
         return '<button class="cal-ev-pill' + (t.done ? ' done' : '') + '" data-act="open" data-id="' + t.id + '" style="border-left-color:' + (c ? c.color : 'var(--accent)') + '">' +
-          (t.timeStart ? '<b>' + U.esc(U.formatTime(t.timeStart, Store.settings().timeFormat === 12)) + '</b>' : '') +
           '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + U.esc(t.title) + '</span></button>';
       };
 
@@ -356,11 +339,11 @@
           const d = new Date(startD); d.setDate(startD.getDate() + i);
           const dk = U.toDateKey(d);
           const out = d.getMonth() !== m;
-          const dayTasks = (byDate[dk] || []).sort(function (a, b) { return (a.timeStart || '99') < (b.timeStart || '99') ? -1 : 1; });
+          const dayTasks = Views.sortTasks(byDate[dk] || [], 'priority');
           let evs = dayTasks.slice(0, 3).map(function (t) {
             const c = Store.category(t.categoryId);
             return '<button class="cal-cell__ev' + (t.done ? ' done' : '') + '" data-act="open" data-id="' + t.id + '" style="background:' + (c ? c.color : 'var(--accent)') + '" title="' + U.esc(t.title) + '">' +
-              (t.timeStart ? U.esc(U.formatTime(t.timeStart, Store.settings().timeFormat === 12)) + ' ' : '') + U.esc(t.title) + '</button>';
+              U.esc(t.title) + '</button>';
           }).join('');
           if (dayTasks.length > 3) evs += '<button class="cal-cell__more" data-act="cal-open-day" data-date="' + dk + '">ещё ' + (dayTasks.length - 3) + '</button>';
           cells += '<div class="cal-cell' + (out ? ' cal-cell--out' : '') + (dk === today ? ' cal-cell--today' : '') + '" data-act="cal-new" data-date="' + dk + '" role="button" tabindex="0" aria-label="' + U.formatLong(dk) + '">' +

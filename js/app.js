@@ -211,7 +211,7 @@
       const cats = Store.categories();
       const s = Store.settings();
       const v = t || {
-        title: '', desc: '', date: presetDate || U.todayKey(), timeStart: '', timeEnd: '',
+        title: '', desc: '', date: presetDate || U.todayKey(),
         priority: 'medium', categoryId: cats[0] ? cats[0].id : 'other',
         repeat: 'none', remind: 'none', remindAt: '', remindRepeat: 0, isMain: false, status: 'new'
       };
@@ -228,8 +228,6 @@
           '<label class="field full">Описание<textarea name="desc" maxlength="2000" placeholder="Детали, ссылки, заметки…">' + U.esc(v.desc) + '</textarea></label>' +
           '<label class="field">Дата выполнения<input type="date" name="date" value="' + U.esc(v.date) + '"></label>' +
           '<label class="field">Категория<select name="categoryId">' + catOpts + '</select></label>' +
-          '<label class="field">Время начала<input type="time" name="timeStart" value="' + U.esc(v.timeStart) + '"></label>' +
-          '<label class="field">Время окончания<input type="time" name="timeEnd" value="' + U.esc(v.timeEnd) + '"></label>' +
           '<label class="field full">Приоритет<div class="prio-picker" id="prioPicker">' +
             ['low', 'medium', 'high'].map(function (p) {
               return '<button type="button" data-v="' + p + '" class="' + (v.priority === p ? 'active' : '') + '"><span class="dot"></span>' + PRIO_LABEL[p] + '</button>';
@@ -277,7 +275,6 @@
         const fd = new FormData(root.querySelector('#taskForm'));
         const form = {
           title: fd.get('title'), desc: fd.get('desc'), date: fd.get('date'),
-          timeStart: fd.get('timeStart') || '', timeEnd: fd.get('timeEnd') || '',
           priority: priority, categoryId: fd.get('categoryId'),
           repeat: fd.get('repeat'), remind: fd.get('remind'), remindAt: fd.get('remindAt') || '', remindRepeat: fd.get('remindRepeat') || 0,
           isMain: fd.get('isMain') === 'on',

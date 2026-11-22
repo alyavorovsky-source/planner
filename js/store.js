@@ -38,7 +38,7 @@
     workEnd: '18:00',
     notifications: false,
     autoArchiveDays: 7,     // предлагать архивировать завершённые старше N дней (0 = выкл.)
-    defaultSort: 'time'
+    defaultSort: 'priority'
   };
 
   const Store = {
@@ -135,8 +135,6 @@
         t.isMain = !!t.isMain;
         t.priority = ['low', 'medium', 'high'].indexOf(t.priority) >= 0 ? t.priority : 'medium';
         t.repeat = ['none', 'daily', 'weekdays', 'weekly', 'monthly'].indexOf(t.repeat) >= 0 ? t.repeat : 'none';
-        if (!U.isValidTime(t.timeStart || '')) t.timeStart = '';
-        if (!U.isValidTime(t.timeEnd || '')) t.timeEnd = '';
         if (!U.isValidTime(t.remindAt || '')) t.remindAt = '';
         if (!t.remind) t.remind = 'none';
         if (t.remind !== 'none' && !U.isValidTime(t.remindAt || '')) t.remind = 'none';
@@ -244,10 +242,6 @@
     validateTask(form) {
       if (!form.title || !form.title.trim()) return 'Название задачи не может быть пустым.';
       if (form.date && U.parseDateKey(form.date) === null) return 'Указана некорректная дата выполнения.';
-      if (form.timeStart && !U.isValidTime(form.timeStart)) return 'Некорректное время начала.';
-      if (form.timeEnd && !U.isValidTime(form.timeEnd)) return 'Некорректное время окончания.';
-      if (form.timeStart && form.timeEnd && U.minutesOf(form.timeEnd) < U.minutesOf(form.timeStart))
-        return 'Время окончания не может быть раньше времени начала.';
       if (form.remind && form.remind !== 'none' && !U.isValidTime(form.remindAt)) return 'Укажите корректное время напоминания.';
       return '';
     },
@@ -259,8 +253,6 @@
         title: form.title.trim(),
         desc: (form.desc || '').trim(),
         date: form.date || U.todayKey(),
-        timeStart: form.timeStart || '',
-        timeEnd: form.timeEnd || '',
         priority: form.priority || 'medium',
         categoryId: form.categoryId || 'other',
         repeat: form.repeat || 'none',
@@ -293,8 +285,6 @@
         title: form.title.trim(),
         desc: (form.desc || '').trim(),
         date: form.date || t.date,
-        timeStart: form.timeStart || '',
-        timeEnd: form.timeEnd || '',
         priority: form.priority || t.priority,
         categoryId: form.categoryId || t.categoryId,
         repeat: form.repeat || 'none',
@@ -487,13 +477,8 @@
 
     isOverdue(t) {
       if (t.done || t.status === 'cancelled') return false; /* отменённые не просрочены */
-      const diff = U.diffDays(U.todayKey(), t.date);
-      if (diff > 0) return true;
-      if (diff === 0 && t.timeEnd && U.isValidTime(t.timeEnd)) {
-        const now = new Date();
-        return U.minutesOf(t.timeEnd) < now.getHours() * 60 + now.getMinutes();
-      }
-      return false;
+      /* задача просрочена, если её день уже прошёл */
+      return U.diffDays(U.todayKey(), t.date) > 0;
     },
 
     /* ==================== Планерки: темы для обсуждения ==================== */
@@ -566,10 +551,10 @@
     csv() {
       const prio = { low: 'Низкий', medium: 'Средний', high: 'Высокий' };
       const rep = { none: 'Нет', daily: 'Ежедневно', weekdays: 'По будням', weekly: 'Еженедельно', monthly: 'Ежемесячно' };
-      const head = ['Название', 'Описание', 'Дата', 'Начало', 'Окончание', 'Приоритет', 'Категория', 'Повтор', 'Статус', 'Создано', 'Выполнено'];
+      const head = ['Название', 'Описание', 'Дата', 'Приоритет', 'Категория', 'Повтор', 'Статус', 'Создано', 'Выполнено'];
       const rows = this.data.tasks.map(function (t) {
         return [
-          t.title, t.desc || '', t.date, t.timeStart || '', t.timeEnd || '',
+          t.title, t.desc || '', t.date,
           prio[t.priority] || t.priority,
           (Store.category(t.categoryId) || {}).name || '',
           rep[t.repeat] || t.repeat,
